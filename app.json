@@ -6,9 +6,13 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.SoundGuide"
+      "bundleIdentifier": "com.anonymous.SoundGuide",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app needs camera access to scan and read documents aloud."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,8 +23,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ],
       "package": "com.anonymous.SoundGuide"
     },
@@ -29,9 +32,10 @@
     },
     "plugins": [
       [
-        "expo-camera",
+        "react-native-vision-camera",
         {
-          "cameraPermission": "This app needs camera access to scan and read documents aloud."
+          "cameraPermissionText": "This app needs camera access to scan and read documents aloud.",
+          "enableMicrophonePermission": false
         }
       ]
     ]

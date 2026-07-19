@@ -1,16 +1,13 @@
 import { Button, StyleSheet, Text, View } from 'react-native';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 
 export default function CameraScreen() {
-  const [permission, requestPermission] = useCameraPermissions();
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const device = useCameraDevice('back');
 
-  if (!permission) {
-    return <View style={styles.container} />;
-  }
-
-  if (!permission.granted) {
+  if (!hasPermission) {
     return (
-      <View style={styles.container}>
+      <View style={styles.centered}>
         <Text style={styles.message}>
           This app needs camera access to scan documents.
         </Text>
@@ -19,15 +16,18 @@ export default function CameraScreen() {
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <CameraView style={styles.camera} facing="back" />
-    </View>
-  );
+  if (device == null) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.message}>No camera device found.</Text>
+      </View>
+    );
+  }
+
+  return <Camera style={StyleSheet.absoluteFill} device={device} isActive={true} />;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  camera: { flex: 1, width: '100%' },
-  message: { textAlign: 'center', paddingBottom: 12 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  message: { textAlign: 'center', marginBottom: 12 },
 });
