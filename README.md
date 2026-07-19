@@ -66,3 +66,7 @@ SoundGuide/
 ## License
 
 See LICENSE.
+
+## Update: switched camera libraries
+
+Moved from \`react-native-rectangle-scanner\` (archived, hit unresolved native build errors even after clean rebuilds) to \`react-native-vision-camera@4\`, which is actively maintained and gives frame-level access needed for real-time audio guidance. Basic camera preview confirmed working on device. Next: a custom native frame processor plugin (Swift, VNDetectRectangleObservation) built as a local Expo Module so it survives \`expo prebuild --clean\`.
