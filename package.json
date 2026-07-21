@@ -8,10 +8,30 @@
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.0",
-    "react-native-vision-camera": "^4.7.3"
+    "react-native-svg": "^15.15.5",
+    "react-native-vision-camera": "^4.7.3",
+    "react-native-worklets-core": "^1.6.3"
   },
   "devDependencies": {
+    "@babel/plugin-proposal-class-properties": "npm:@babel/plugin-transform-class-properties@^7.29.7",
+    "@babel/plugin-proposal-nullish-coalescing-operator": "npm:@babel/plugin-transform-nullish-coalescing-operator@^7.29.7",
+    "@babel/plugin-proposal-object-rest-spread": "npm:@babel/plugin-transform-object-rest-spread@^7.29.7",
+    "@babel/plugin-proposal-optional-chaining": "npm:@babel/plugin-transform-optional-chaining@^7.29.7",
+    "@babel/plugin-transform-arrow-functions": "^7.29.7",
+    "@babel/plugin-transform-class-properties": "^7.29.7",
+    "@babel/plugin-transform-classes": "^7.29.7",
+    "@babel/plugin-transform-computed-properties": "^7.29.7",
+    "@babel/plugin-transform-destructuring": "^7.29.7",
+    "@babel/plugin-transform-nullish-coalescing-operator": "^7.29.7",
+    "@babel/plugin-transform-object-rest-spread": "^7.29.7",
+    "@babel/plugin-transform-optional-chaining": "^7.29.7",
+    "@babel/plugin-transform-parameters": "^7.29.7",
+    "@babel/plugin-transform-shorthand-properties": "^7.29.7",
+    "@babel/plugin-transform-spread": "^7.29.7",
+    "@babel/plugin-transform-template-literals": "^7.29.7",
+    "@babel/plugin-transform-unicode-regex": "^7.29.7",
     "@types/react": "~19.2.2",
+    "babel-preset-expo": "^57.0.3",
     "typescript": "~6.0.3"
   },
   "scripts": {

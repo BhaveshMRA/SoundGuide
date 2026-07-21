@@ -1,0 +1,101 @@
+› Skipping dev server
+› Using --device 00008140-001E08E60AE8801C
+› Auto signing app using team(s): "79KVFUKKM8"
+› Planning build
+› Executing react-native Pods/hermes-engine » [CP-User] [Hermes] Replace Hermes for the right configuration, if needed
+› Executing react-native Pods/hermes-engine » [CP] Copy XCFrameworks
+› Executing react-native Pods/ReactNativeDependencies » [CP-User] [RNDeps] Replace React Native Dependencies for the right configuration, if needed
+› Executing react-native Pods/ReactNativeDependencies » [CP] Copy XCFrameworks
+› Executing react-native Pods/React-Core-prebuilt » [CP-User] [RNCore] Replace React Native Core for the right configuration, if needed
+› Executing react-native Pods/React-Core-prebuilt » [CP] Copy XCFrameworks
+› Preparing Pods/React-Core-React-Core_privacy » ResourceBundle-React-Core_privacy-React-Core-Info.plist
+› Preparing Pods/React-cxxreact-React-cxxreact_privacy » ResourceBundle-React-cxxreact_privacy-React-cxxreact-Info.plist
+› Preparing Pods/React-timing-React-timing_privacy » ResourceBundle-React-timing_privacy-React-timing-Info.plist
+› Executing expo-modules-jsi Pods/ExpoModulesJSI » [CP-User] Build ExpoModulesJSI xcframework
+› Executing expo-modules-jsi Pods/ExpoModulesJSI » [CP] Copy XCFrameworks
+› Executing react-native Pods/React-RCTFBReactNativeSpec » [CP-User] [RN]Check FBReactNativeSpec
+› Executing soundguide Pods/ReactCodegen » [CP-User] Generate Specs
+› Executing soundguide Pods/ReactCodegen » [Expo] Remove duplicate codegen output
+› Executing expo-modules-core Pods/ExpoModulesCore » [CP-User] [Expo] Resolve ExpoModulesCore dSYM source maps
+› Executing expo-modules-core Pods/ExpoModulesCore » [CP-User] [Expo] Switch ExpoModulesCore XCFramework for build configuration
+› Executing expo-modules-core Pods/ExpoModulesCore » [CP] Copy XCFrameworks
+› Executing react-native-vision-camera Pods/VisionCamera » Copy generated compatibility header
+› Compiling soundguide Pods/DocumentScanner » RectangleDetectorPlugin.m
+› Compiling soundguide Pods/DocumentScanner » DocumentScanner-dummy.m
+› Packaging soundguide Pods/DocumentScanner » libDocumentScanner.a
+› Executing soundguide Pods/DocumentScanner » Copy generated compatibility header
+› Executing expo-font Pods/ExpoFont » [CP-User] [Expo] Resolve ExpoFont dSYM source maps
+› Executing expo-modules-core Pods/ExpoModulesWorklets » [CP-User] [Expo] Resolve ExpoModulesWorklets dSYM source maps
+› Executing expo-manifests Pods/EXManifests » Copy generated compatibility header
+› Executing expo-keep-awake Pods/ExpoKeepAwake » Copy generated compatibility header
+› Executing @expo/dom-webview Pods/ExpoDomWebView » Copy generated compatibility header
+› Executing expo-dev-menu-interface Pods/expo-dev-menu-interface » Copy generated compatibility header
+› Executing @expo/log-box Pods/ExpoLogBox » Copy generated compatibility header
+› Executing expo-asset Pods/ExpoAsset » Copy generated compatibility header
+› Executing expo Pods/Expo » Copy generated compatibility header
+› Executing expo-updates-interface Pods/EXUpdatesInterface » Copy generated compatibility header
+› Preparing Pods/ExpoFileSystem-ExpoFileSystem_privacy » ResourceBundle-ExpoFileSystem_privacy-ExpoFileSystem-Info.plist
+› Preparing expo-constants Pods/EXConstants-EXConstants » ResourceBundle-EXConstants-EXConstants-Info.plist
+› Executing expo-file-system Pods/ExpoFileSystem » [CP-User] [Expo] Resolve ExpoFileSystem dSYM source maps
+› Preparing Pods/EXConstants-ExpoConstants_privacy » ResourceBundle-ExpoConstants_privacy-EXConstants-Info.plist
+› Executing expo-constants Pods/EXConstants » [CP-User] Generate app.config for prebuilt Constants.manifest
+› Preparing Pods/expo-dev-menu-EXDevMenu » ResourceBundle-EXDevMenu-expo-dev-menu-Info.plist
+› Preparing Pods/expo-dev-launcher-EXDevLauncher » ResourceBundle-EXDevLauncher-expo-dev-launcher-Info.plist
+› Executing expo-constants Pods/EXConstants » Copy generated compatibility header
+› Executing expo-modules-core Pods/ExpoModulesWorklets » [CP-User] [Expo] Switch ExpoModulesWorklets XCFramework for build configuration
+› Executing expo-font Pods/ExpoFont » [CP-User] [Expo] Switch ExpoFont XCFramework for build configuration
+› Executing expo-modules-core Pods/ExpoModulesWorklets » [CP] Copy XCFrameworks
+› Executing expo-font Pods/ExpoFont » [CP] Copy XCFrameworks
+› Executing expo-file-system Pods/ExpoFileSystem » [CP-User] [Expo] Switch ExpoFileSystem XCFramework for build configuration
+› Executing expo-file-system Pods/ExpoFileSystem » [CP] Copy XCFrameworks
+› Compiling expo-dev-menu Pods/expo-dev-menu » RCTKeyCommands.m
+› Compiling expo-dev-menu Pods/expo-dev-menu » expo-dev-menu-dummy.m
+› Compiling expo-dev-menu Pods/expo-dev-menu » EXDevMenuAppInfo.m
+› Packaging expo-dev-menu Pods/expo-dev-menu » libexpo-dev-menu.a
+› Executing expo-dev-menu Pods/expo-dev-menu » Copy generated compatibility header
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » expo-dev-launcher-dummy.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherUpdatesHelper.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherRCTDevSettings.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherEarlySetup.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherRedBox.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherManifestParser.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncher.m
+› Compiling expo-dev-launcher Pods/expo-dev-launcher » EXDevLauncherController.m
+› Packaging expo-dev-launcher Pods/expo-dev-launcher » libexpo-dev-launcher.a
+› Executing expo-dev-launcher Pods/expo-dev-launcher » Copy generated compatibility header
+› Compiling Pods/Pods-SoundGuide » Pods-SoundGuide-dummy.m
+› Packaging Pods/Pods-SoundGuide » libPods-SoundGuide.a
+⚠️  Script has ambiguous dependencies causing it to run on every build.
+   To fix, go to: Xcode » SoundGuide/SoundGuide » Build Phases » '[Expo Dev Launcher] Strip Local Network Keys for Release'
+   Either: Uncheck "Based on dependency analysis", or select output files to trigger the script
+
+› Executing SoundGuide » [CP] Check Pods Manifest.lock
+› Executing SoundGuide » [Expo] Configure project
+› Linking   SoundGuide » __preview.dylib
+› Compiling SoundGuide » SoundGuide_vers.c
+› Linking   SoundGuide » SoundGuide.debug.dylib
+
+⚠️  (ios/SoundGuide.xcodeproj:)
+
+
+ignoring duplicate libraries: '-lc++'
+(warning truncated)
+› Linking   SoundGuide » SoundGuide
+› Preparing SoundGuide » Info.plist
+› Executing SoundGuide » Bundle React Native code and images
+› Generating debug SoundGuide » SoundGuide.app.dSYM
+› Generating debug SoundGuide » SoundGuide.app.dSYM
+› Executing SoundGuide » [CP] Copy Pods Resources
+› Executing SoundGuide » [Expo Dev Launcher] Strip Local Network Keys for Release
+› Executing SoundGuide » [CP] Embed Pods Frameworks
+› Signing   SoundGuide » SoundGuide.debug.dylib
+› Signing   SoundGuide » __preview.dylib
+› Signing   SoundGuide » SoundGuide.app
+› Build Succeeded
+
+› 0 error(s), and 2 warning(s)
+
+Waiting on http://localhost:8081
+› Installing /Users/bhavesh_maurya/Library/Developer/Xcode/DerivedData/SoundGuide-gknhiypfhesuubfooxszlkcshunn/Build/Products/Debug-iphoneos/SoundGuide.app
+- GeneratingApplicationMap
+✔ Complete 100%
