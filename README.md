@@ -70,3 +70,7 @@ See LICENSE.
 ## Update: switched camera libraries
 
 Moved from \`react-native-rectangle-scanner\` (archived, hit unresolved native build errors even after clean rebuilds) to \`react-native-vision-camera@4\`, which is actively maintained and gives frame-level access needed for real-time audio guidance. Basic camera preview confirmed working on device. Next: a custom native frame processor plugin (Swift, VNDetectRectangleObservation) built as a local Expo Module so it survives \`expo prebuild --clean\`.
+
+## Update: accurate real-time edge tracking confirmed
+
+Fixed a camera sensor orientation mismatch — the raw pixel buffer VisionCamera provides is landscape regardless of phone orientation, and the native plugin wasn't telling Vision framework about the actual portrait orientation, causing skewed results (three correct corners, one wildly off). Fixed by passing `frame.orientation` through to `VNImageRequestHandler`. Confirmed accurate quadrilateral tracking on angled documents, matching real edges including perspective skew, using a live SVG polygon overlay rather than an axis-aligned bounding box.
