@@ -12,8 +12,9 @@ import Svg, { Polygon } from 'react-native-svg';
 
 const plugin = VisionCameraProxy.initFrameProcessorPlugin('detectRectangle');
 
-const HISTORY_SIZE = 8;
-const STABILITY_THRESHOLD = 0.02;
+const HISTORY_SIZE = 5;
+const STABILITY_THRESHOLD = 0.035;
+const MISS_TOLERANCE = 3;
 
 type Corner = { x: number; y: number };
 type Rectangle = {
@@ -46,14 +47,20 @@ export default function CameraScreen() {
   const [rectangle, setRectangle] = useState<DetectedRectangle>(null);
   const [stable, setStable] = useState(false);
   const historyRef = useRef<Rectangle[]>([]);
+  const missCountRef = useRef(0);
 
   const updateRectangle = Worklets.createRunOnJS((result: DetectedRectangle) => {
-    setRectangle(result);
     if (result == null) {
-      historyRef.current = [];
-      setStable(false);
+      missCountRef.current += 1;
+      if (missCountRef.current > MISS_TOLERANCE) {
+        setRectangle(null);
+        historyRef.current = [];
+        setStable(false);
+      }
       return;
     }
+    missCountRef.current = 0;
+    setRectangle(result);
     historyRef.current = [...historyRef.current, result].slice(-HISTORY_SIZE);
     setStable(isStable(historyRef.current));
   });

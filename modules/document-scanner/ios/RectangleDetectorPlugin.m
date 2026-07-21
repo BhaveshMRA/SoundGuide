@@ -39,18 +39,35 @@ static CGImagePropertyOrientation CGImagePropertyOrientationFromUIImageOrientati
   __block NSDictionary *result = nil;
 
   VNDetectRectanglesRequest *request = [[VNDetectRectanglesRequest alloc] initWithCompletionHandler:^(VNRequest * _Nonnull req, NSError * _Nullable error) {
-    VNRectangleObservation *observation = req.results.firstObject;
-    if (observation != nil) {
-      result = @{
-        @"topLeft": @{@"x": @(observation.topLeft.x), @"y": @(observation.topLeft.y)},
-        @"topRight": @{@"x": @(observation.topRight.x), @"y": @(observation.topRight.y)},
-        @"bottomLeft": @{@"x": @(observation.bottomLeft.x), @"y": @(observation.bottomLeft.y)},
-        @"bottomRight": @{@"x": @(observation.bottomRight.x), @"y": @(observation.bottomRight.y)},
-        @"confidence": @(observation.confidence)
-      };
+    NSArray<VNRectangleObservation *> *observations = (NSArray<VNRectangleObservation *> *)req.results;
+    if (observations.count == 0) {
+      return;
     }
+
+    // Multiple candidates can appear (e.g. a notebook sitting on a laptop
+    // lid). Prefer whichever one is closest to the center of the frame,
+    // since that's where we guide the user to hold the actual document.
+    VNRectangleObservation *best = observations.firstObject;
+    CGFloat bestDistance = CGFLOAT_MAX;
+    for (VNRectangleObservation *observation in observations) {
+      CGFloat centerX = (observation.topLeft.x + observation.topRight.x + observation.bottomLeft.x + observation.bottomRight.x) / 4.0;
+      CGFloat centerY = (observation.topLeft.y + observation.topRight.y + observation.bottomLeft.y + observation.bottomRight.y) / 4.0;
+      CGFloat distance = hypot(centerX - 0.5, centerY - 0.5);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = observation;
+      }
+    }
+
+    result = @{
+      @"topLeft": @{@"x": @(best.topLeft.x), @"y": @(best.topLeft.y)},
+      @"topRight": @{@"x": @(best.topRight.x), @"y": @(best.topRight.y)},
+      @"bottomLeft": @{@"x": @(best.bottomLeft.x), @"y": @(best.bottomLeft.y)},
+      @"bottomRight": @{@"x": @(best.bottomRight.x), @"y": @(best.bottomRight.y)},
+      @"confidence": @(best.confidence)
+    };
   }];
-  request.maximumObservations = 1;
+  request.maximumObservations = 5;
   request.minimumConfidence = 0.7;
   request.minimumAspectRatio = 0.3;
 
