@@ -14,7 +14,7 @@ Phase 1 in progress. Camera feed and permission handling are built and running o
 
 **Phase 1: Detect and auto-capture, store it**
 - [x] Camera feed setup with permission handling
-- [ ] Real-time document edge detection
+- [x] Real-time document edge detection
 - [ ] Stability check across frames
 - [ ] Auto-capture trigger
 - [ ] Perspective crop to border-to-border
