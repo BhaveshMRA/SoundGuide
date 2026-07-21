@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
 import {
   Camera,
@@ -12,22 +12,50 @@ import Svg, { Polygon } from 'react-native-svg';
 
 const plugin = VisionCameraProxy.initFrameProcessorPlugin('detectRectangle');
 
+const HISTORY_SIZE = 8;
+const STABILITY_THRESHOLD = 0.02;
+
 type Corner = { x: number; y: number };
-type DetectedRectangle = {
+type Rectangle = {
   topLeft: Corner;
   topRight: Corner;
   bottomLeft: Corner;
   bottomRight: Corner;
   confidence: number;
-} | null;
+};
+type DetectedRectangle = Rectangle | null;
+
+function isStable(history: Rectangle[]): boolean {
+  if (history.length < HISTORY_SIZE) return false;
+  const corners: (keyof Rectangle)[] = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
+  for (const corner of corners) {
+    const xs = history.map((r) => (r[corner] as Corner).x);
+    const ys = history.map((r) => (r[corner] as Corner).y);
+    const xRange = Math.max(...xs) - Math.min(...xs);
+    const yRange = Math.max(...ys) - Math.min(...ys);
+    if (xRange > STABILITY_THRESHOLD || yRange > STABILITY_THRESHOLD) {
+      return false;
+    }
+  }
+  return true;
+}
 
 export default function CameraScreen() {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
   const [rectangle, setRectangle] = useState<DetectedRectangle>(null);
+  const [stable, setStable] = useState(false);
+  const historyRef = useRef<Rectangle[]>([]);
 
   const updateRectangle = Worklets.createRunOnJS((result: DetectedRectangle) => {
     setRectangle(result);
+    if (result == null) {
+      historyRef.current = [];
+      setStable(false);
+      return;
+    }
+    historyRef.current = [...historyRef.current, result].slice(-HISTORY_SIZE);
+    setStable(isStable(historyRef.current));
   });
 
   const frameProcessor = useFrameProcessor((frame) => {
@@ -65,17 +93,17 @@ export default function CameraScreen() {
         frameProcessor={frameProcessor}
         frameProcessorFps={5}
       />
-      {rectangle && <RectangleOverlay rectangle={rectangle} />}
+      {rectangle && <RectangleOverlay rectangle={rectangle} stable={stable} />}
     </View>
   );
 }
 
-function RectangleOverlay({ rectangle }: { rectangle: NonNullable<DetectedRectangle> }) {
-  // Vision's y-axis increases upward from the bottom; screen y increases
-  // downward from the top, so each point's y needs to be flipped (1 - y).
+function RectangleOverlay({ rectangle, stable }: { rectangle: Rectangle; stable: boolean }) {
   const points = [rectangle.topLeft, rectangle.topRight, rectangle.bottomRight, rectangle.bottomLeft]
     .map((corner) => `${corner.x * 100},${(1 - corner.y) * 100}`)
     .join(' ');
+
+  const color = stable ? 'rgb(76, 217, 100)' : 'rgb(255, 181, 6)';
 
   return (
     <Svg
@@ -86,8 +114,8 @@ function RectangleOverlay({ rectangle }: { rectangle: NonNullable<DetectedRectan
     >
       <Polygon
         points={points}
-        fill="rgba(255, 181, 6, 0.15)"
-        stroke="rgb(255, 181, 6)"
+        fill={stable ? 'rgba(76, 217, 100, 0.2)' : 'rgba(255, 181, 6, 0.15)'}
+        stroke={color}
         strokeWidth={3}
         vectorEffect="non-scaling-stroke"
       />
