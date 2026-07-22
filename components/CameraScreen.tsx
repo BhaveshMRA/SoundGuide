@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Button, Image, StyleSheet, Text, View } from 'react-native';
 import {
   Camera,
   useCameraDevice,
@@ -15,6 +15,7 @@ const plugin = VisionCameraProxy.initFrameProcessorPlugin('detectRectangle');
 const HISTORY_SIZE = 5;
 const STABILITY_THRESHOLD = 0.035;
 const MISS_TOLERANCE = 3;
+const MIN_AREA = 0.15;
 
 type Corner = { x: number; y: number };
 type Rectangle = {
@@ -25,6 +26,17 @@ type Rectangle = {
   confidence: number;
 };
 type DetectedRectangle = Rectangle | null;
+
+function quadArea(r: Rectangle): number {
+  const pts = [r.topLeft, r.topRight, r.bottomRight, r.bottomLeft];
+  let area = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const { x: x1, y: y1 } = pts[i];
+    const { x: x2, y: y2 } = pts[(i + 1) % pts.length];
+    area += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(area) / 2;
+}
 
 function isStable(history: Rectangle[]): boolean {
   if (history.length < HISTORY_SIZE) return false;
@@ -44,13 +56,18 @@ function isStable(history: Rectangle[]): boolean {
 export default function CameraScreen() {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
+  const cameraRef = useRef<Camera>(null);
   const [rectangle, setRectangle] = useState<DetectedRectangle>(null);
   const [stable, setStable] = useState(false);
+  const [capturedPath, setCapturedPath] = useState<string | null>(null);
   const historyRef = useRef<Rectangle[]>([]);
   const missCountRef = useRef(0);
+  const capturingRef = useRef(false);
 
   const updateRectangle = Worklets.createRunOnJS((result: DetectedRectangle) => {
-    if (result == null) {
+    const validResult = result != null && quadArea(result) >= MIN_AREA ? result : null;
+
+    if (validResult == null) {
       missCountRef.current += 1;
       if (missCountRef.current > MISS_TOLERANCE) {
         setRectangle(null);
@@ -60,8 +77,8 @@ export default function CameraScreen() {
       return;
     }
     missCountRef.current = 0;
-    setRectangle(result);
-    historyRef.current = [...historyRef.current, result].slice(-HISTORY_SIZE);
+    setRectangle(validResult);
+    historyRef.current = [...historyRef.current, validResult].slice(-HISTORY_SIZE);
     setStable(isStable(historyRef.current));
   });
 
@@ -71,6 +88,26 @@ export default function CameraScreen() {
     const result = plugin.call(frame);
     updateRectangle(result);
   }, []);
+
+  useEffect(() => {
+    if (!stable || capturingRef.current || capturedPath != null) return;
+    capturingRef.current = true;
+    cameraRef.current
+      ?.takePhoto({ flash: 'off' })
+      .then((photo) => {
+        // photo.path's format has varied across our testing, sometimes a
+        // raw path, sometimes already a file:// URI, so check rather than
+        // always prepending the scheme.
+        const uri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+        setCapturedPath(uri);
+      })
+      .catch((error) => {
+        console.log('capture error', error);
+      })
+      .finally(() => {
+        capturingRef.current = false;
+      });
+  }, [stable, capturedPath]);
 
   if (!hasPermission) {
     return (
@@ -91,12 +128,25 @@ export default function CameraScreen() {
     );
   }
 
+  if (capturedPath) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.message}>Captured!</Text>
+        <Image source={{ uri: capturedPath }} style={styles.preview} resizeMode="contain" />
+        <Text style={styles.path}>{capturedPath}</Text>
+        <Button title="Scan again" onPress={() => setCapturedPath(null)} />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Camera
+        ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
         isActive={true}
+        photo={true}
         frameProcessor={frameProcessor}
         frameProcessorFps={5}
       />
@@ -133,5 +183,13 @@ function RectangleOverlay({ rectangle, stable }: { rectangle: Rectangle; stable:
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  message: { textAlign: 'center', marginBottom: 12 },
+  message: { textAlign: 'center', marginBottom: 12, fontSize: 20, fontWeight: '600' },
+  preview: {
+    width: '90%',
+    height: 400,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  path: { textAlign: 'center', fontSize: 10, color: '#666', paddingHorizontal: 16, marginBottom: 16 },
 });
