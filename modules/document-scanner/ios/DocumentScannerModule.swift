@@ -34,11 +34,6 @@ func scansDirectory() -> URL {
   return dir
 }
 
-// Documents/ instead of the temporary directory: tmp is explicitly
-// documented as something iOS can clear at any time it needs space, not
-// suitable for anything the user actually wants to keep. Documents
-// persists across launches and device restarts, and is what the OS
-// expects app-generated user content to live in.
 func saveJpeg(from ciImage: CIImage) throws -> String {
   let context = CIContext()
   guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
@@ -107,6 +102,32 @@ public class DocumentScannerModule: Module {
       return try saveJpeg(from: ciImage)
     }
 
+    // Pure on-device OCR, the same Vision technology behind Apple's Live
+    // Text (select-and-copy text in Photos). No network call, no LLM, no
+    // cost, works offline. Separated deliberately from any LLM reasoning
+    // step, which should operate on this extracted plain text rather than
+    // re-reading the image itself.
+    AsyncFunction("recognizeText") { (imagePath: String) -> String in
+      let ciImage = try loadOrientedImage(from: imagePath)
+      let context = CIContext()
+      guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+        throw DocumentScannerError.cropFailed
+      }
+
+      var recognizedLines: [String] = []
+      let request = VNRecognizeTextRequest { req, _ in
+        guard let observations = req.results as? [VNRecognizedTextObservation] else { return }
+        recognizedLines = observations.compactMap { $0.topCandidates(1).first?.string }
+      }
+      request.recognitionLevel = .accurate
+      request.usesLanguageCorrection = true
+
+      let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+      try handler.perform([request])
+
+      return recognizedLines.joined(separator: "\n")
+    }
+
     AsyncFunction("debugImageInfo") { (imagePath: String) -> String in
       let cleanPath = imagePath.replacingOccurrences(of: "file://", with: "")
       let url = URL(fileURLWithPath: cleanPath)
@@ -118,8 +139,6 @@ public class DocumentScannerModule: Module {
       return "orientationTag=\(String(describing: orientationValue)) rawWidth=\(extent.width) rawHeight=\(extent.height)"
     }
 
-    // Lets the JS side confirm persistence is actually working, rather
-    // than just trusting it, by listing what's really on disk.
     AsyncFunction("listSavedScans") { () -> [String] in
       let dir = scansDirectory()
       guard let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {

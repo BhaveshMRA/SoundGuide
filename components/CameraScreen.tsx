@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Image, StyleSheet, Text, View } from 'react-native';
+import { Button, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   Camera,
   useCameraDevice,
@@ -79,6 +79,8 @@ export default function CameraScreen() {
   const [cropFailed, setCropFailed] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string>('');
   const [savedCount, setSavedCount] = useState<number>(0);
+  const [recognizedText, setRecognizedText] = useState<string>('');
+  const [ocrRunning, setOcrRunning] = useState(false);
   const historyRef = useRef<Rectangle[]>([]);
   const missCountRef = useRef(0);
   const capturingRef = useRef(false);
@@ -124,6 +126,20 @@ export default function CameraScreen() {
     setCapturedPath(null);
     setCropFailed(false);
     setDebugInfo('');
+    setRecognizedText('');
+    setOcrRunning(false);
+  };
+
+  const runOcr = async (imageUri: string) => {
+    setOcrRunning(true);
+    try {
+      const text = await DocumentScannerModule.recognizeText(imageUri);
+      setRecognizedText(text);
+    } catch (ocrError) {
+      setRecognizedText('OCR failed: ' + String(ocrError));
+    } finally {
+      setOcrRunning(false);
+    }
   };
 
   useEffect(() => {
@@ -157,10 +173,11 @@ export default function CameraScreen() {
 
       try {
         const croppedUri = await DocumentScannerModule.cropToDocument(uri);
-        const savedScans = await DocumentScannerModule.listSavedScans();
-        setSavedCount(savedScans.length);
         retryCountRef.current = 0;
         setCapturedPath(croppedUri);
+        const savedScans = await DocumentScannerModule.listSavedScans();
+        setSavedCount(savedScans.length);
+        runOcr(croppedUri);
       } catch (cropError) {
         retryCountRef.current += 1;
         console.log(`crop error, attempt ${retryCountRef.current} of ${MAX_CROP_RETRIES}`, cropError);
@@ -173,12 +190,14 @@ export default function CameraScreen() {
           stableRef.current = false;
         } else {
           setCropFailed(true);
+          let finalUri = uri;
           try {
-            const orientedUri = await DocumentScannerModule.correctOrientation(uri);
-            setCapturedPath(orientedUri);
+            finalUri = await DocumentScannerModule.correctOrientation(uri);
           } catch {
-            setCapturedPath(uri);
+            // fall through with the original uri
           }
+          setCapturedPath(finalUri);
+          runOcr(finalUri);
           retryCountRef.current = 0;
         }
       }
@@ -228,16 +247,24 @@ export default function CameraScreen() {
       {rectangle && capturedPath == null && <RectangleOverlay rectangle={rectangle} stable={stable} />}
       {capturedPath && (
         <View style={styles.previewOverlay}>
-          <Text style={styles.message}>Captured!</Text>
-          <Text selectable style={styles.debug}>{debugInfo}</Text>
-          <Text style={styles.debug}>{savedCount} scan(s) saved on device</Text>
-          {cropFailed && (
-            <Text style={styles.warning}>
-              Couldn't detect edges clearly after several tries, showing full photo instead of a cropped one.
-            </Text>
-          )}
-          <Image source={{ uri: capturedPath }} style={styles.preview} resizeMode="contain" />
-          <Button title="Scan again" onPress={startNewScan} />
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            <Text style={styles.message}>Captured!</Text>
+            <Text selectable style={styles.debug}>{debugInfo}</Text>
+            <Text style={styles.debug}>{savedCount} scan(s) saved on device</Text>
+            {cropFailed && (
+              <Text style={styles.warning}>
+                Couldn't detect edges clearly after several tries, showing full photo instead of a cropped one.
+              </Text>
+            )}
+            <Image source={{ uri: capturedPath }} style={styles.preview} resizeMode="contain" />
+            <Text style={styles.sectionLabel}>Extracted text (on-device OCR, no LLM)</Text>
+            {ocrRunning ? (
+              <Text style={styles.ocrText}>Reading text...</Text>
+            ) : (
+              <Text selectable style={styles.ocrText}>{recognizedText || '(no text found)'}</Text>
+            )}
+            <Button title="Scan again" onPress={startNewScan} />
+          </ScrollView>
         </View>
       )}
     </View>
@@ -275,7 +302,7 @@ const styles = StyleSheet.create({
   message: { textAlign: 'center', marginBottom: 12, fontSize: 20, fontWeight: '600' },
   debug: {
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
     fontSize: 13,
     color: '#1d4ed8',
     paddingHorizontal: 16,
@@ -289,17 +316,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   preview: {
-    width: '90%',
-    height: 500,
-    marginBottom: 16,
+    width: '100%',
+    height: 400,
+    marginVertical: 12,
     borderWidth: 1,
     borderColor: '#ccc',
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 6,
+    color: '#111',
+    alignSelf: 'flex-start',
+  },
+  ocrText: {
+    fontSize: 15,
+    lineHeight: 21,
+    color: '#222',
+    marginBottom: 16,
   },
   previewOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+  },
+  scrollContent: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    alignItems: 'stretch',
   },
 });
