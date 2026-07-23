@@ -18,7 +18,7 @@ Phase 1 in progress. Camera feed and permission handling are built and running o
 - [x] Stability check across frames
 - [x] Auto-capture trigger
 - [x] Perspective crop to border-to-border
-- [ ] Local storage of captured images
+- [x] Local storage of captured images
 
 **Phase 2: OCR and reasoning**
 - [ ] Gemini Vision integration for text extraction
