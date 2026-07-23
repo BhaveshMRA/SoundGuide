@@ -9,6 +9,7 @@ import {
 } from 'react-native-vision-camera';
 import { Worklets } from 'react-native-worklets-core';
 import Svg, { Polygon } from 'react-native-svg';
+import DocumentScannerModule from '../modules/document-scanner/src/DocumentScannerModule';
 
 const plugin = VisionCameraProxy.initFrameProcessorPlugin('detectRectangle');
 
@@ -89,17 +90,38 @@ export default function CameraScreen() {
     updateRectangle(result);
   }, []);
 
+  const startNewScan = () => {
+    // Reset every piece of capture-related state, not just the photo,
+    // otherwise leftover "stable" state immediately re-triggers capture
+    // before the camera session has actually finished reactivating.
+    historyRef.current = [];
+    missCountRef.current = 0;
+    capturingRef.current = false;
+    setRectangle(null);
+    setStable(false);
+    setCapturedPath(null);
+  };
+
   useEffect(() => {
-    if (!stable || capturingRef.current || capturedPath != null) return;
+    if (!stable || capturingRef.current || capturedPath != null || rectangle == null) return;
     capturingRef.current = true;
+    const cornersForCrop = {
+      topLeft: rectangle.topLeft,
+      topRight: rectangle.topRight,
+      bottomLeft: rectangle.bottomLeft,
+      bottomRight: rectangle.bottomRight,
+    };
     cameraRef.current
       ?.takePhoto({ flash: 'off' })
-      .then((photo) => {
-        // photo.path's format has varied across our testing, sometimes a
-        // raw path, sometimes already a file:// URI, so check rather than
-        // always prepending the scheme.
+      .then(async (photo) => {
         const uri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
-        setCapturedPath(uri);
+        try {
+          const croppedUri = await DocumentScannerModule.cropToDocument(uri);
+          setCapturedPath(croppedUri);
+        } catch (cropError) {
+          console.log('crop error', cropError);
+          setCapturedPath(uri);
+        }
       })
       .catch((error) => {
         console.log('capture error', error);
@@ -107,7 +129,7 @@ export default function CameraScreen() {
       .finally(() => {
         capturingRef.current = false;
       });
-  }, [stable, capturedPath]);
+  }, [stable, capturedPath, rectangle]);
 
   if (!hasPermission) {
     return (
@@ -128,29 +150,25 @@ export default function CameraScreen() {
     );
   }
 
-  if (capturedPath) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.message}>Captured!</Text>
-        <Image source={{ uri: capturedPath }} style={styles.preview} resizeMode="contain" />
-        <Text style={styles.path}>{capturedPath}</Text>
-        <Button title="Scan again" onPress={() => setCapturedPath(null)} />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <Camera
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
-        isActive={true}
+        isActive={capturedPath == null}
         photo={true}
         frameProcessor={frameProcessor}
         frameProcessorFps={5}
       />
-      {rectangle && <RectangleOverlay rectangle={rectangle} stable={stable} />}
+      {rectangle && capturedPath == null && <RectangleOverlay rectangle={rectangle} stable={stable} />}
+      {capturedPath && (
+        <View style={styles.previewOverlay}>
+          <Text style={styles.message}>Captured!</Text>
+          <Image source={{ uri: capturedPath }} style={styles.preview} resizeMode="contain" />
+          <Button title="Scan again" onPress={startNewScan} />
+        </View>
+      )}
     </View>
   );
 }
@@ -186,10 +204,16 @@ const styles = StyleSheet.create({
   message: { textAlign: 'center', marginBottom: 12, fontSize: 20, fontWeight: '600' },
   preview: {
     width: '90%',
-    height: 400,
+    height: 500,
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#ccc',
   },
-  path: { textAlign: 'center', fontSize: 10, color: '#666', paddingHorizontal: 16, marginBottom: 16 },
+  previewOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
 });
