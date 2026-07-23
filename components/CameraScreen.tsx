@@ -3,6 +3,7 @@ import { Button, Image, StyleSheet, Text, View } from 'react-native';
 import {
   Camera,
   useCameraDevice,
+  useCameraFormat,
   useCameraPermission,
   useFrameProcessor,
   VisionCameraProxy,
@@ -13,11 +14,14 @@ import DocumentScannerModule from '../modules/document-scanner/src/DocumentScann
 
 const plugin = VisionCameraProxy.initFrameProcessorPlugin('detectRectangle');
 
-const HISTORY_SIZE = 5;
-const STABILITY_THRESHOLD = 0.035;
-const MISS_TOLERANCE = 3;
+const HISTORY_SIZE = 4;
+const STABILITY_THRESHOLD = 0.05;
+const MISS_TOLERANCE = 2;
 const MIN_AREA = 0.15;
 const MAX_CROP_RETRIES = 3;
+const RECHECK_POLL_MS = 150;
+const RECHECK_MAX_WAIT_MS = 2000;
+const RETRY_COOLDOWN_MS = 300;
 
 type Corner = { x: number; y: number };
 type Rectangle = {
@@ -55,18 +59,30 @@ function isStable(history: Rectangle[]): boolean {
   return true;
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export default function CameraScreen() {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
+  const format = useCameraFormat(device, [
+    { photoAspectRatio: 16 / 9 },
+    { photoResolution: 'max' },
+    { videoAspectRatio: 16 / 9 },
+    { videoResolution: { width: 1920, height: 1080 } },
+  ]);
   const cameraRef = useRef<Camera>(null);
   const [rectangle, setRectangle] = useState<DetectedRectangle>(null);
   const [stable, setStable] = useState(false);
   const [capturedPath, setCapturedPath] = useState<string | null>(null);
   const [cropFailed, setCropFailed] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
   const historyRef = useRef<Rectangle[]>([]);
   const missCountRef = useRef(0);
   const capturingRef = useRef(false);
   const retryCountRef = useRef(0);
+  const stableRef = useRef(false);
 
   const updateRectangle = Worklets.createRunOnJS((result: DetectedRectangle) => {
     const validResult = result != null && quadArea(result) >= MIN_AREA ? result : null;
@@ -77,13 +93,16 @@ export default function CameraScreen() {
         setRectangle(null);
         historyRef.current = [];
         setStable(false);
+        stableRef.current = false;
       }
       return;
     }
     missCountRef.current = 0;
     setRectangle(validResult);
     historyRef.current = [...historyRef.current, validResult].slice(-HISTORY_SIZE);
-    setStable(isStable(historyRef.current));
+    const nowStable = isStable(historyRef.current);
+    setStable(nowStable);
+    stableRef.current = nowStable;
   });
 
   const frameProcessor = useFrameProcessor((frame) => {
@@ -98,44 +117,71 @@ export default function CameraScreen() {
     missCountRef.current = 0;
     capturingRef.current = false;
     retryCountRef.current = 0;
+    stableRef.current = false;
     setRectangle(null);
     setStable(false);
     setCapturedPath(null);
     setCropFailed(false);
+    setDebugInfo('');
   };
 
   useEffect(() => {
     if (!stable || capturingRef.current || capturedPath != null || rectangle == null) return;
     capturingRef.current = true;
-    cameraRef.current
-      ?.takePhoto({ flash: 'off' })
-      .then(async (photo) => {
-        const uri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
-        try {
-          const croppedUri = await DocumentScannerModule.cropToDocument(uri);
-          retryCountRef.current = 0;
-          setCapturedPath(croppedUri);
-        } catch (cropError) {
-          retryCountRef.current += 1;
-          console.log(`crop error, attempt ${retryCountRef.current} of ${MAX_CROP_RETRIES}`, cropError);
 
-          if (retryCountRef.current <= MAX_CROP_RETRIES) {
-            // Quietly retry: reset detection state so the live camera
-            // re-detects and re-triggers capture on its own, rather than
-            // showing the user a raw, uncropped photo they can't
-            // meaningfully evaluate anyway.
-            historyRef.current = [];
-            missCountRef.current = 0;
-            setStable(false);
-          } else {
-            // Genuine last resort after repeated failures, so the app
-            // never gets stuck silently retrying forever.
-            setCropFailed(true);
+    const runCapture = async () => {
+      let waited = 0;
+      while (!stableRef.current && waited < RECHECK_MAX_WAIT_MS) {
+        await wait(RECHECK_POLL_MS);
+        waited += RECHECK_POLL_MS;
+      }
+      if (!stableRef.current) {
+        return;
+      }
+
+      const photo = await cameraRef.current?.takePhoto({
+        flash: 'off',
+        qualityPrioritization: 'quality',
+      });
+      if (!photo) return;
+
+      const uri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
+
+      try {
+        const info = await DocumentScannerModule.debugImageInfo(uri);
+        setDebugInfo(info);
+      } catch (e) {
+        setDebugInfo('debug call itself failed: ' + String(e));
+      }
+
+      try {
+        const croppedUri = await DocumentScannerModule.cropToDocument(uri);
+        retryCountRef.current = 0;
+        setCapturedPath(croppedUri);
+      } catch (cropError) {
+        retryCountRef.current += 1;
+        console.log(`crop error, attempt ${retryCountRef.current} of ${MAX_CROP_RETRIES}`, cropError);
+
+        if (retryCountRef.current < MAX_CROP_RETRIES) {
+          await wait(RETRY_COOLDOWN_MS);
+          historyRef.current = [];
+          missCountRef.current = 0;
+          setStable(false);
+          stableRef.current = false;
+        } else {
+          setCropFailed(true);
+          try {
+            const orientedUri = await DocumentScannerModule.correctOrientation(uri);
+            setCapturedPath(orientedUri);
+          } catch {
             setCapturedPath(uri);
-            retryCountRef.current = 0;
           }
+          retryCountRef.current = 0;
         }
-      })
+      }
+    };
+
+    runCapture()
       .catch((error) => {
         console.log('capture error', error);
       })
@@ -169,15 +215,18 @@ export default function CameraScreen() {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
+        format={format}
         isActive={capturedPath == null}
         photo={true}
         frameProcessor={frameProcessor}
-        frameProcessorFps={5}
+        frameProcessorFps={10}
+        resizeMode="contain"
       />
       {rectangle && capturedPath == null && <RectangleOverlay rectangle={rectangle} stable={stable} />}
       {capturedPath && (
         <View style={styles.previewOverlay}>
           <Text style={styles.message}>Captured!</Text>
+          <Text selectable style={styles.debug}>{debugInfo}</Text>
           {cropFailed && (
             <Text style={styles.warning}>
               Couldn't detect edges clearly after several tries, showing full photo instead of a cropped one.
@@ -220,6 +269,14 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   message: { textAlign: 'center', marginBottom: 12, fontSize: 20, fontWeight: '600' },
+  debug: {
+    textAlign: 'center',
+    marginBottom: 12,
+    fontSize: 13,
+    color: '#1d4ed8',
+    paddingHorizontal: 16,
+    fontFamily: 'Courier',
+  },
   warning: {
     textAlign: 'center',
     marginBottom: 12,

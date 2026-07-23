@@ -11,30 +11,52 @@ enum DocumentScannerError: Error {
   case encodeFailed
 }
 
+func loadOrientedImage(from imagePath: String) throws -> CIImage {
+  let cleanPath = imagePath.replacingOccurrences(of: "file://", with: "")
+  let url = URL(fileURLWithPath: cleanPath)
+
+  guard let rawImage = CIImage(contentsOf: url) else {
+    throw DocumentScannerError.imageLoadFailed
+  }
+
+  var ciImage = rawImage
+  if let orientationNumber = rawImage.properties[kCGImagePropertyOrientation as String] as? NSNumber,
+     let orientation = CGImagePropertyOrientation(rawValue: orientationNumber.uint32Value) {
+    ciImage = rawImage.oriented(orientation)
+  }
+  return ciImage
+}
+
+func saveJpeg(from ciImage: CIImage) throws -> String {
+  let context = CIContext()
+  guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+    throw DocumentScannerError.cropFailed
+  }
+  let uiImage = UIImage(cgImage: cgImage)
+  guard let jpegData = uiImage.jpegData(compressionQuality: 0.92) else {
+    throw DocumentScannerError.encodeFailed
+  }
+  let outputURL = FileManager.default.temporaryDirectory
+    .appendingPathComponent(UUID().uuidString)
+    .appendingPathExtension("jpg")
+  try jpegData.write(to: outputURL)
+  return outputURL.absoluteString
+}
+
 public class DocumentScannerModule: Module {
   public func definition() -> ModuleDefinition {
     Name("DocumentScanner")
 
     AsyncFunction("cropToDocument") { (imagePath: String) -> String in
-      let cleanPath = imagePath.replacingOccurrences(of: "file://", with: "")
-      let url = URL(fileURLWithPath: cleanPath)
-
-      guard let rawImage = CIImage(contentsOf: url) else {
-        throw DocumentScannerError.imageLoadFailed
-      }
-
-      var ciImage = rawImage
-      if let orientationNumber = rawImage.properties[kCGImagePropertyOrientation as String] as? NSNumber,
-         let orientation = CGImagePropertyOrientation(rawValue: orientationNumber.uint32Value) {
-        ciImage = rawImage.oriented(orientation)
-      }
-
+      // loadOrientedImage already applies the correct rotation based on
+      // the file's real EXIF orientation tag (confirmed via debugImageInfo:
+      // consistently tag 6, i.e. "rotate right", a completely standard
+      // value). Detection below runs on this already-correctly-oriented
+      // image, so the corner points it returns are already correct too.
+      // No further rotation belongs anywhere after this.
+      let ciImage = try loadOrientedImage(from: imagePath)
       let extent = ciImage.extent
 
-      // Detect the document directly on the final photo rather than
-      // reusing corner points from the separate live-preview stream.
-      // Guarantees corners and pixels are always in the same coordinate
-      // space, no resolution or aspect-ratio mismatch to account for.
       var observation: VNRectangleObservation?
       let request = VNDetectRectanglesRequest { req, _ in
         observation = (req.results as? [VNRectangleObservation])?.first
@@ -68,22 +90,23 @@ public class DocumentScannerModule: Module {
         throw DocumentScannerError.cropFailed
       }
 
-      let context = CIContext()
-      guard let cgImage = context.createCGImage(outputImage, from: outputImage.extent) else {
-        throw DocumentScannerError.cropFailed
+      return try saveJpeg(from: outputImage)
+    }
+
+    AsyncFunction("correctOrientation") { (imagePath: String) -> String in
+      let ciImage = try loadOrientedImage(from: imagePath)
+      return try saveJpeg(from: ciImage)
+    }
+
+    AsyncFunction("debugImageInfo") { (imagePath: String) -> String in
+      let cleanPath = imagePath.replacingOccurrences(of: "file://", with: "")
+      let url = URL(fileURLWithPath: cleanPath)
+      guard let rawImage = CIImage(contentsOf: url) else {
+        return "failed to load image at all"
       }
-
-      let uiImage = UIImage(cgImage: cgImage)
-      guard let jpegData = uiImage.jpegData(compressionQuality: 0.92) else {
-        throw DocumentScannerError.encodeFailed
-      }
-
-      let outputURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString)
-        .appendingPathExtension("jpg")
-      try jpegData.write(to: outputURL)
-
-      return outputURL.absoluteString
+      let orientationValue = rawImage.properties[kCGImagePropertyOrientation as String]
+      let extent = rawImage.extent
+      return "orientationTag=\(String(describing: orientationValue)) rawWidth=\(extent.width) rawHeight=\(extent.height)"
     }
   }
 }
