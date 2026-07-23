@@ -102,11 +102,6 @@ public class DocumentScannerModule: Module {
       return try saveJpeg(from: ciImage)
     }
 
-    // Pure on-device OCR, the same Vision technology behind Apple's Live
-    // Text (select-and-copy text in Photos). No network call, no LLM, no
-    // cost, works offline. Separated deliberately from any LLM reasoning
-    // step, which should operate on this extracted plain text rather than
-    // re-reading the image itself.
     AsyncFunction("recognizeText") { (imagePath: String) -> String in
       let ciImage = try loadOrientedImage(from: imagePath)
       let context = CIContext()
