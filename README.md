@@ -23,7 +23,8 @@ Phase 1 in progress. Camera feed and permission handling are built and running o
 **Phase 2: OCR and reasoning**
 - [x] On-device OCR for text extraction (Vision framework, no LLM)
 - [x] On-screen output for validation, no audio yet
-- [ ] LLM reasoning on extracted text (Gemma via Ollama Cloud)
+- [x] OCR verification and correction against the image (Gemma, cloud)
+- [x] Document summary/reasoning on demand (Gemma, cloud)
 
 **Phase 3: Audio guidance**
 - [ ] Real-time alignment cues (move, tilt, hold steady)
