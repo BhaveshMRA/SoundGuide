@@ -78,6 +78,7 @@ export default function CameraScreen() {
   const [capturedPath, setCapturedPath] = useState<string | null>(null);
   const [cropFailed, setCropFailed] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string>('');
+  const [savedCount, setSavedCount] = useState<number>(0);
   const historyRef = useRef<Rectangle[]>([]);
   const missCountRef = useRef(0);
   const capturingRef = useRef(false);
@@ -156,6 +157,8 @@ export default function CameraScreen() {
 
       try {
         const croppedUri = await DocumentScannerModule.cropToDocument(uri);
+        const savedScans = await DocumentScannerModule.listSavedScans();
+        setSavedCount(savedScans.length);
         retryCountRef.current = 0;
         setCapturedPath(croppedUri);
       } catch (cropError) {
@@ -227,6 +230,7 @@ export default function CameraScreen() {
         <View style={styles.previewOverlay}>
           <Text style={styles.message}>Captured!</Text>
           <Text selectable style={styles.debug}>{debugInfo}</Text>
+          <Text style={styles.debug}>{savedCount} scan(s) saved on device</Text>
           {cropFailed && (
             <Text style={styles.warning}>
               Couldn't detect edges clearly after several tries, showing full photo instead of a cropped one.

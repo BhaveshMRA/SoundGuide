@@ -27,6 +27,18 @@ func loadOrientedImage(from imagePath: String) throws -> CIImage {
   return ciImage
 }
 
+func scansDirectory() -> URL {
+  let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+  let dir = documentsURL.appendingPathComponent("ScannedDocuments", isDirectory: true)
+  try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+  return dir
+}
+
+// Documents/ instead of the temporary directory: tmp is explicitly
+// documented as something iOS can clear at any time it needs space, not
+// suitable for anything the user actually wants to keep. Documents
+// persists across launches and device restarts, and is what the OS
+// expects app-generated user content to live in.
 func saveJpeg(from ciImage: CIImage) throws -> String {
   let context = CIContext()
   guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
@@ -36,9 +48,12 @@ func saveJpeg(from ciImage: CIImage) throws -> String {
   guard let jpegData = uiImage.jpegData(compressionQuality: 0.92) else {
     throw DocumentScannerError.encodeFailed
   }
-  let outputURL = FileManager.default.temporaryDirectory
-    .appendingPathComponent(UUID().uuidString)
-    .appendingPathExtension("jpg")
+
+  let formatter = DateFormatter()
+  formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss-SSS"
+  let filename = "scan_\(formatter.string(from: Date())).jpg"
+  let outputURL = scansDirectory().appendingPathComponent(filename)
+
   try jpegData.write(to: outputURL)
   return outputURL.absoluteString
 }
@@ -48,12 +63,6 @@ public class DocumentScannerModule: Module {
     Name("DocumentScanner")
 
     AsyncFunction("cropToDocument") { (imagePath: String) -> String in
-      // loadOrientedImage already applies the correct rotation based on
-      // the file's real EXIF orientation tag (confirmed via debugImageInfo:
-      // consistently tag 6, i.e. "rotate right", a completely standard
-      // value). Detection below runs on this already-correctly-oriented
-      // image, so the corner points it returns are already correct too.
-      // No further rotation belongs anywhere after this.
       let ciImage = try loadOrientedImage(from: imagePath)
       let extent = ciImage.extent
 
@@ -107,6 +116,16 @@ public class DocumentScannerModule: Module {
       let orientationValue = rawImage.properties[kCGImagePropertyOrientation as String]
       let extent = rawImage.extent
       return "orientationTag=\(String(describing: orientationValue)) rawWidth=\(extent.width) rawHeight=\(extent.height)"
+    }
+
+    // Lets the JS side confirm persistence is actually working, rather
+    // than just trusting it, by listing what's really on disk.
+    AsyncFunction("listSavedScans") { () -> [String] in
+      let dir = scansDirectory()
+      guard let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
+        return []
+      }
+      return files.map { $0.absoluteString }
     }
   }
 }
