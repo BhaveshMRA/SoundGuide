@@ -91,3 +91,13 @@ Decided to accept the corner-occlusion limitation for now rather than pursue an 
 ## Phase 2: on-device OCR (no LLM)
 
 Added text extraction using Vision framework's VNRecognizeTextRequest, the same on-device technology behind Apple's Live Text feature. Deliberately kept separate from any LLM call: OCR is free, instant, and works offline, so it handles the actual reading. An LLM (Gemma via Ollama Cloud) will only be invoked afterward, on the extracted plain text, for reasoning tasks like summarizing or answering questions about the document, not for reading it. Verified both cropped image and extracted text render together for visual comparison.
+
+## Optimization: OCR verification latency, 95s down to 8s
+
+Initial cloud verification (image + full document reproduction, gemma4:31b-cloud) took ~95 seconds. Investigated three levers in sequence, testing each with real timing data rather than assuming impact:
+
+1. Downscaling the uploaded image before sending: no meaningful improvement, ruled out upload size as the dominant cost.
+2. Asking for a short JSON list of corrections instead of full document reproduction: ~95s to 70s, confirmed output length was a real but partial factor.
+3. Switching from gemma4:31b-cloud to gemma4:cloud (the smaller default-size model) for this specific narrow, structured task: ~70s to 8s, confirmed model size was the dominant cost.
+
+Kept gemma4:31b-cloud for the separate "Ask AI about this document" summary feature, since that's a more open-ended reasoning task where the larger model's depth is more likely to matter. Investigated on-device verification via Apple's Foundation Models framework as an alternative to any cloud call at all; found that multimodal image support requires iOS 27 (developer beta as of writing), not the stable iOS 26 this app currently targets, so deferred rather than gated the app on unreleased software.
