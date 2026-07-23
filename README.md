@@ -86,3 +86,7 @@ Testing surfaced a fundamental gap between our test methodology (document flat o
 ## Scope decision: hand-held detection deferred
 
 Decided to accept the corner-occlusion limitation for now rather than pursue an alternate detection strategy. Phase 1 detection assumes the document is fully visible with all four corners unoccluded, meaning propped against a surface (book, wall, table edge) or laid flat, not held entirely by hand. This should carry through into Phase 3 audio guidance design: initial instructions should guide the user to prop or lay down the document rather than assume hand-held framing. Revisit if propped-only use proves too limiting in practice; a text-region-based detection approach (not requiring a closed quadrilateral) was identified as a possible future direction if full hand-held support becomes a requirement.
+
+## Phase 2: on-device OCR (no LLM)
+
+Added text extraction using Vision framework's VNRecognizeTextRequest, the same on-device technology behind Apple's Live Text feature. Deliberately kept separate from any LLM call: OCR is free, instant, and works offline, so it handles the actual reading. An LLM (Gemma via Ollama Cloud) will only be invoked afterward, on the extracted plain text, for reasoning tasks like summarizing or answering questions about the document, not for reading it. Verified both cropped image and extracted text render together for visual comparison.
