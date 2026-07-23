@@ -21,8 +21,9 @@ Phase 1 in progress. Camera feed and permission handling are built and running o
 - [x] Local storage of captured images
 
 **Phase 2: OCR and reasoning**
-- [ ] Gemini Vision integration for text extraction
-- [ ] On-screen output for validation, no audio yet
+- [x] On-device OCR for text extraction (Vision framework, no LLM)
+- [x] On-screen output for validation, no audio yet
+- [ ] LLM reasoning on extracted text (Gemma via Ollama Cloud)
 
 **Phase 3: Audio guidance**
 - [ ] Real-time alignment cues (move, tilt, hold steady)
