@@ -25,7 +25,8 @@ const RECHECK_MAX_WAIT_MS = 2000;
 const RETRY_COOLDOWN_MS = 300;
 
 const OLLAMA_API_KEY = process.env.EXPO_PUBLIC_OLLAMA_API_KEY;
-const OLLAMA_MODEL = 'gemma4:31b-cloud';
+const OLLAMA_VERIFY_MODEL = 'gemma4:cloud';
+const OLLAMA_REASONING_MODEL = 'gemma4:31b-cloud';
 
 type Corner = { x: number; y: number };
 type Rectangle = {
@@ -52,23 +53,19 @@ function quadArea(r: Rectangle): number {
 function isStable(history: Rectangle[]): boolean {
   if (history.length < HISTORY_SIZE) return false;
   const corners: (keyof Rectangle)[] = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
-  for (const corner of corners) {
+  return corners.every((corner) => {
     const xs = history.map((r) => (r[corner] as Corner).x);
     const ys = history.map((r) => (r[corner] as Corner).y);
-    const xRange = Math.max(...xs) - Math.min(...xs);
-    const yRange = Math.max(...ys) - Math.min(...ys);
-    if (xRange > STABILITY_THRESHOLD || yRange > STABILITY_THRESHOLD) {
-      return false;
-    }
-  }
-  return true;
+    return Math.max(...xs) - Math.min(...xs) <= STABILITY_THRESHOLD &&
+      Math.max(...ys) - Math.min(...ys) <= STABILITY_THRESHOLD;
+  });
 }
 
 function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function callOllama(content: string, images?: string[]): Promise<string> {
+async function callOllama(content: string, model: string, images?: string[]): Promise<string> {
   if (!OLLAMA_API_KEY) {
     throw new Error('EXPO_PUBLIC_OLLAMA_API_KEY is not set. Check your .env file.');
   }
@@ -85,7 +82,7 @@ async function callOllama(content: string, images?: string[]): Promise<string> {
       Authorization: `Bearer ${OLLAMA_API_KEY}`,
     },
     body: JSON.stringify({
-      model: OLLAMA_MODEL,
+      model,
       messages: [message],
       stream: false,
     }),
@@ -130,7 +127,7 @@ async function verifyOcrWithImage(
     '[{"wrong": "Jersey City, ND", "correct": "Jersey City, NJ"}]. ' +
     'If there are no mistakes, return an empty array []. Return only the JSON array, nothing else, no markdown formatting.';
 
-  const responseText = await callOllama(prompt, [base64Image]);
+  const responseText = await callOllama(prompt, OLLAMA_VERIFY_MODEL, [base64Image]);
 
   let corrections: Correction[] = [];
   try {
@@ -144,7 +141,7 @@ async function verifyOcrWithImage(
   let corrected = ocrText;
   for (const { wrong, correct } of corrections) {
     if (wrong && correct && corrected.includes(wrong)) {
-      corrected = corrected.split(wrong).join(correct);
+      corrected = corrected.replaceAll(wrong, correct);
     }
   }
   return { text: corrected, corrections };
@@ -156,7 +153,7 @@ async function askOllama(documentText: string): Promise<string> {
     'Here is the text extracted from it:\n\n' +
     documentText +
     '\n\nIn clear, spoken-friendly language, describe what kind of document this is and summarize its key points.';
-  return callOllama(prompt);
+  return callOllama(prompt, OLLAMA_REASONING_MODEL);
 }
 
 export default function CameraScreen() {
@@ -189,6 +186,7 @@ export default function CameraScreen() {
   const capturingRef = useRef(false);
   const retryCountRef = useRef(0);
   const stableRef = useRef(false);
+  const scanTokenRef = useRef(0);
 
   const updateRectangle = Worklets.createRunOnJS((result: DetectedRectangle) => {
     const validResult = result != null && quadArea(result) >= MIN_AREA ? result : null;
@@ -219,6 +217,7 @@ export default function CameraScreen() {
   }, []);
 
   const startNewScan = () => {
+    scanTokenRef.current += 1;
     historyRef.current = [];
     missCountRef.current = 0;
     capturingRef.current = false;
@@ -241,14 +240,19 @@ export default function CameraScreen() {
   };
 
   const runOcrAndVerify = async (imageUri: string) => {
+    const token = ++scanTokenRef.current;
+    const isCurrent = () => scanTokenRef.current === token;
+
     setOcrRunning(true);
     setOcrCorrected(false);
     setCorrections([]);
     let rawText = '';
     try {
       rawText = await DocumentScannerModule.recognizeText(imageUri);
+      if (!isCurrent()) return;
       setRecognizedText(rawText);
     } catch (ocrError) {
+      if (!isCurrent()) return;
       setRecognizedText('OCR failed: ' + String(ocrError));
       setOcrRunning(false);
       return;
@@ -259,9 +263,13 @@ export default function CameraScreen() {
 
     setVerifying(true);
     const verifyStart = Date.now();
-    const timer = setInterval(() => setVerifyElapsedMs(Date.now() - verifyStart), 250);
+    const timer = setInterval(() => {
+      if (!isCurrent()) return clearInterval(timer);
+      setVerifyElapsedMs(Date.now() - verifyStart);
+    }, 250);
     try {
       const result = await verifyOcrWithImage(imageUri, rawText);
+      if (!isCurrent()) return;
       setRecognizedText(result.text);
       setCorrections(result.corrections);
       setOcrCorrected(true);
@@ -269,7 +277,7 @@ export default function CameraScreen() {
       console.log('OCR verification failed, keeping raw OCR text', verifyError);
     } finally {
       clearInterval(timer);
-      setVerifying(false);
+      if (isCurrent()) setVerifying(false);
     }
   };
 
@@ -310,12 +318,11 @@ export default function CameraScreen() {
 
       const uri = photo.path.startsWith('file://') ? photo.path : `file://${photo.path}`;
 
-      try {
-        const info = await DocumentScannerModule.debugImageInfo(uri);
-        setDebugInfo(info);
-      } catch (e) {
-        setDebugInfo('debug call itself failed: ' + String(e));
-      }
+      setDebugInfo(
+        await DocumentScannerModule.debugImageInfo(uri).catch(
+          (e: unknown) => 'debug call itself failed: ' + String(e)
+        )
+      );
 
       try {
         const croppedUri = await DocumentScannerModule.cropToDocument(uri);
@@ -336,12 +343,7 @@ export default function CameraScreen() {
           stableRef.current = false;
         } else {
           setCropFailed(true);
-          let finalUri = uri;
-          try {
-            finalUri = await DocumentScannerModule.correctOrientation(uri);
-          } catch {
-            // fall through with the original uri
-          }
+          const finalUri = await DocumentScannerModule.correctOrientation(uri).catch(() => uri);
           setCapturedPath(finalUri);
           runOcrAndVerify(finalUri);
           retryCountRef.current = 0;
